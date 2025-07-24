@@ -1,0 +1,416 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "_artifactsLocation": {
+      "type": "string"
+    },
+    "_artifactsLocationSasToken": {
+      "type": "securestring"
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]"
+    },
+    "keyVaultName": {
+      "type": "string"
+    },
+    "Appserviceuiname": {
+      "type": "string"
+    },
+     "routetablename": {
+            "type": "string",
+            "defaultValue": "azure-route-to-onprem"
+      },
+    "ProjectCodeName": {
+      "type": "string"
+    },
+    "AppServicePlanName": {
+      "type": "string"
+    },
+     "OpenAIName": {
+      "type": "string"
+    },
+    "OpenAISKU": {
+      "type": "string",
+      "defaultValue": "S0"
+    },
+    "Appservicemlname": {
+      "type": "string"
+    },
+    "loganalyticsworkspacename": {
+      "type": "string"
+    },
+    "applicationInsightsName": {
+      "type": "string"
+    },
+    "UiWebAppRegistrationAppID": {
+      "type": "string"
+    },
+    "vnetname": {
+      "type": "string"
+    },
+    "virtualNetworkIP": {
+      "type": "string"
+    },
+    "subnet1IP": {
+      "type": "string"
+    },
+    "subnet2IP": {
+      "type": "string"
+    },
+    "FrontDoorname": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "string"
+    },
+    "nsgName": {
+      "type": "string"
+    },
+    "createdBy": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "apisubnet": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "mlsubnet": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "CreatedAt": {
+      "type": "string",
+      "defaultValue": "[utcNow('d')]"
+    },
+    "postgresServerName": {
+      "type": "string"
+    },
+    "administratorLogin": {
+      "type": "string"
+    },
+    "administratorPassword": {
+      "type": "securestring"
+    },
+    "PostgreDBName": {
+      "type": "string"
+    },
+    "privateEndpointName": {
+      "type": "string",
+      "defaultValue": "[concat(parameters('postgresServerName'), '-pe')]"
+    }
+
+  },
+  "variables": {
+    "tenantId": "[subscription().tenantId]"
+  },
+  "resources": [
+    {
+      "name": "VNET",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('_artifactsLocation'),'/Artifacts/Templates/azurevnet.json?',parameters('_artifactsLocationSasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "vnetname": {
+            "value": "[parameters('vnetname')]"
+          },
+          "virtualNetworkPrefix": {
+            "value": "[parameters('virtualNetworkIP')]"
+          },
+          "subnet1IP": {
+            "value": "[parameters('subnet1IP')]"
+          },
+          "subnet2IP": {
+            "value": "[parameters('subnet2IP')]"
+          },
+          "apisubnet": {
+            "value": "[parameters('apisubnet')]"
+          },
+          "mlsubnet": {
+            "value": "[parameters('mlsubnet')]"
+          },
+          "nsgName": {
+            "value": "[parameters('nsgName')]"
+          }
+        }
+      }
+    },
+    {
+      "name": "KeyVault",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'VNET')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('_artifactsLocation'),'/Artifacts/Templates/azurekeyvault.json?',parameters('_artifactsLocationSasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "keyVaultName": {
+            "value": "[parameters('keyVaultName')]"
+          }
+        }
+      }
+    },
+    {
+      "name": "LogAnalytics",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('_artifactsLocation'),'/Artifacts/Templates/azureloganalyticsworkspace.json?',parameters('_artifactsLocationSasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "loganalyticsworkspacename": {
+            "value": "[parameters('loganalyticsworkspacename')]"
+          }
+        }
+      }
+    },
+    {
+      "name": "AppInsights",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'LogAnalytics')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('_artifactsLocation'),'/Artifacts/Templates/azureappinsights.json?',parameters('_artifactsLocationSasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "applicationInsightsName": {
+            "value": "[parameters('applicationInsightsName')]"
+          },
+          "loganalyticsworkspacename": {
+            "value": "[parameters('loganalyticsworkspacename')]"
+          }
+        }
+      }
+    },
+    {
+      "name": "Web_UI_API_App_Service",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'VNET')]",
+        "[resourceId('Microsoft.Resources/deployments', 'AppInsights')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('_artifactsLocation'),'/Artifacts/Templates/azurewebappui.json?',parameters('_artifactsLocationSasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Appserviceuiname": {
+            "value": "[parameters('Appserviceuiname')]"
+          },
+          "AppServicePlanName": {
+            "value": "[parameters('AppServicePlanName')]"
+          },
+          "applicationInsightsName": {
+            "value": "[parameters('applicationInsightsName')]"
+          },
+          "UiWebAppRegistrationAppID": {
+            "value": "[parameters('UiWebAppRegistrationAppID')]"
+          },
+          "vnetname": {
+            "value": "[parameters('vnetname')]"
+          },
+          "apisubnet": {
+            "value": "[parameters('apisubnet')]"
+          }
+        }
+      }
+    },
+    {
+      "name": "Python_WebApp_AppServicePlan",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'VNET')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('_artifactsLocation'),'/Artifacts/Templates/azurewebappapi.json?',parameters('_artifactsLocationSasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "AppServicePlanName": {
+            "value": "[parameters('AppServicePlanName')]"
+          },
+          "Appservicemlname": {
+            "value": "[parameters('Appservicemlname')]"
+          },
+          "UiWebAppRegistrationAppID": {
+            "value": "[parameters('UiWebAppRegistrationAppID')]"
+          },
+          "vnetname": {
+            "value": "[parameters('vnetname')]"
+          },
+          "mlsubnet": {
+            "value": "[parameters('mlsubnet')]"
+          }
+        }
+      }
+    },
+    {
+      "name": "AzureFrontDoor",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'Web_UI_API_App_Service')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('_artifactsLocation'),'/Artifacts/Templates/azurefd.json?',parameters('_artifactsLocationSasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "FrontDoorname": {
+            "value": "[parameters('FrontDoorName')]"
+          },
+          "frontend_webapp": {
+            "value": "[parameters('Appserviceuiname')]"
+          },
+          "backend_webapp": {
+            "value": "[parameters('Appservicemlname')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "project": {
+            "value": "[parameters('ProjectCodeName')]"
+          },
+          "createdBy": {
+            "value": "[parameters('createdBy')]"
+          }
+        }
+      }
+    },
+    {
+      "name": "azureopenai",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('_artifactsLocation'), '/Artifacts/Templates/azureopenai.json?', parameters('_artifactsLocationSasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "OpenAIName": {
+            "value": "[parameters('OpenAIName')]"
+          },
+          "OpenAISKU": {
+            "value": "[parameters('OpenAISKU')]"
+          },
+          "CreatedAt": {
+            "value": "[parameters('CreatedAt')]"
+          },
+          "project": {
+            "value": "[parameters('ProjectCodeName')]"
+          },
+          "createdBy": {
+            "value": "[parameters('createdBy')]"
+          }
+        }
+      }
+    },
+    {
+      "name": "PostgreSQL",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'VNET')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('_artifactsLocation'), '/Artifacts/Templates/azurepostgresql.json?', parameters('_artifactsLocationSasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "postgresServerName": {
+            "value": "[parameters('postgresServerName')]"
+          },
+          "administratorLogin": {
+            "value": "[parameters('administratorLogin')]"
+          },
+          "administratorPassword": {
+            "value": "[parameters('administratorPassword')]"
+          },
+          "PostgreDBName": {
+            "value": "[parameters('PostgreDBName')]"
+          },
+          "privateEndpointName": {
+            "value": "[parameters('privateEndpointName')]"
+          }
+        
+        }
+      }
+    },
+    {
+            "type": "Microsoft.Network/routeTables",
+            "apiVersion": "2024-05-01",
+            "name": "[parameters('routetablename')]",
+            "location": "[parameters('Location')]",
+            "properties": {
+              "disableBgpRoutePropagation": false,
+              "routes": [
+                {
+                  "name": "route-to-onprem",
+                  "properties": {
+                    "addressPrefix": "10.34.1.0/24",
+                    "nextHopType": "VirtualAppliance",
+                    "nextHopIpAddress": "10.128.2.4"
+                  }
+                }
+              ]
+            }
+    },
+     {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2022-07-01",
+            "name": "[format('{0}/{1}', parameters('vnetname'), parameters('mlsubnet'))]",
+            "dependsOn": [
+              "[resourceId('Microsoft.Resources/deployments', 'VNET')]",
+              "[resourceId('Microsoft.Network/routeTables', parameters('routetablename'))]"
+            ],
+            "properties": {
+              "addressPrefix": "[parameters('subnet2IP')]",
+              "routeTable": {
+                "id": "[resourceId('Microsoft.Network/routeTables', parameters('routetablename'))]"
+            },
+            "networkSecurityGroup": {
+              "id": "[resourceId('Microsoft.Network/networkSecurityGroups', concat('nsg-', parameters('mlsubnet')))]"
+            },
+            "delegations": [
+                {
+                    "name": "delegation-appservice",
+                    "properties": {
+                        "serviceName": "Microsoft.Web/serverFarms"
+                    }
+                }
+            ]
+        }
+    }
+  ],
+  "outputs": {}
+}
