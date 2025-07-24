@@ -1,0 +1,169 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "vnetname": {
+      "type": "string"
+    },
+    "location": {
+      "type": "String",
+      "defaultValue": "[resourceGroup().location]"
+    },
+    "virtualNetworkPrefix": {
+      "type": "string"
+    },
+    "mlsubnet": {
+      "type": "string"
+    },
+    "subnet1IP": {
+      "type": "string"
+    },
+    "apisubnet": {
+      "type": "string"
+    },
+    "subnet2IP": {
+      "type": "string"
+    },
+    "nsgName": {
+      "type": "string"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-05-01",
+      "name": "[parameters('nsgName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "AllowPostgreSQLInbound",
+            "properties": {
+              "description": "Allow PostgreSQL traffic within VNet",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "5432",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "access": "Allow",
+              "priority": 100,
+              "direction": "Inbound"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-05-01",
+      "name": "[concat('nsg-', parameters('mlsubnet'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "AllowPostgreSQLInbound",
+            "properties": {
+              "description": "Allow PostgreSQL traffic within VNet",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "5432",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "access": "Allow",
+              "priority": 100,
+              "direction": "Inbound"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-05-01",
+      "name": "[concat('nsg-', parameters('apisubnet'))]",
+      "location": "[parameters('location')]",
+      "properties": {}
+    },
+
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-05-01",
+      "name": "[parameters('vnetname')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', concat('nsg-', parameters('mlsubnet')))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', concat('nsg-', parameters('apisubnet')))]"
+      ],
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": ["[parameters('virtualNetworkPrefix')]"]
+        },
+        "subnets": [
+          {
+            "name": "[parameters('mlsubnet')]",
+            "properties": {
+              "addressPrefix": "[parameters('subnet1IP')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', concat('nsg-', parameters('mlsubnet')))]"
+              },
+              "serviceEndpoints": [
+                {
+                  "service": "Microsoft.Storage",
+                  "locations": ["[parameters('location')]"]
+                },
+                {
+                  "service": "Microsoft.KeyVault",
+                  "locations": ["[parameters('location')]"]
+                }
+              ],
+              "delegations": [
+                {
+                  "name": "delegation",
+                  "id": "[concat(resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetname'), parameters('apisubnet')), '/delegations/delegation')]",
+                  "properties": {
+                    "serviceName": "Microsoft.Web/serverfarms"
+                  },
+                  "type": "Microsoft.Network/virtualNetworks/subnets/delegations"
+                }
+              ],
+              "privateEndpointNetworkPolicies": "Disabled",
+              "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+          },
+          {
+            "name": "[parameters('apisubnet')]",
+            "properties": {
+              "addressPrefix": "[parameters('subnet2IP')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', concat('nsg-', parameters('apisubnet')))]"
+              },
+              "serviceEndpoints": [
+                {
+                  "service": "Microsoft.Storage",
+                  "locations": ["[parameters('location')]"]
+                },
+                {
+                  "service": "Microsoft.KeyVault",
+                  "locations": ["[parameters('location')]"]
+                }
+              ],
+              "delegations": [
+                {
+                  "name": "delegation",
+                  "id": "[concat(resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetname'), parameters('mlsubnet')), '/delegations/delegation')]",
+                  "properties": {
+                    "serviceName": "Microsoft.Web/serverfarms"
+                  },
+                  "type": "Microsoft.Network/virtualNetworks/subnets/delegations"
+                }
+              ],
+              "privateEndpointNetworkPolicies": "Disabled",
+              "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
